@@ -29,7 +29,7 @@ class AppSchema extends CakeSchema {
     'co_provisioning_target_id' => array('type' => 'integer', 'null' => false, 'length' => 10),
     
     'api_base_url' => array('type' => 'string', 'null' => true, 'default' => null, 'length' => 512),
-
+    'api_realm' => array('type' => 'string', 'null' => true, 'default' => null, 'length' => 512),
     'api_client_id' => array('type' => 'string', 'null' => true, 'default' => null, 'length' => 128),
     'api_client_secret' => array('type' => 'string', 'null' => true, 'default' => null, 'length' => 256),
 

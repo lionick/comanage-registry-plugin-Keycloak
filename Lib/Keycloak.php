@@ -17,10 +17,11 @@ class Keycloak
    * @param  array $coProvisioningTargetData
    * @return void
    */
-  public static function config($keycloak, $coProvisioningTargetData = NULL, $user_profile = NULL)
+  public static function config($keycloak, $coProvisioningTargetData = NULL, $user_profile = NULL, $access_token)
   {
 
     $keycloak->userProfile = $user_profile;
+    $keycloak->accessToken = $access_token;
     if (!is_null($coProvisioningTargetData)) {
       foreach ($coProvisioningTargetData as $key => $value) {
         if (!in_array($key, array('id', 'deleted', 'created', 'modified', 'co_provisioning_target_id'))) {
@@ -102,7 +103,7 @@ class Keycloak
    * @param  mixed $vo_group_prefix
    * @return void
    */
-  public static function deleteEntitlementsByCou($keycloak, $cou_name,  $urn_namespace, $urn_legacy, $urn_authority)
+  public static function deleteEntitlementsByCou($provisioner, $keycloak, $cou_name,  $urn_namespace, $urn_legacy, $urn_authority)
   {
     if (
       !empty($keycloak->entitlementFormat)
@@ -116,21 +117,24 @@ class Keycloak
     $group = !empty($group_name) ? ":" . $group_name : "";
     // cou_names are already url_encoded
     $entitlement_regex = '^' . $urn_namespace . ":group:" . str_replace('+', '\+', $cou_name) . $group . ":(.*)#" . $urn_authority;
-
+    // keycloak doesnt support regex so we must search for something that is compatible with "LIKE" query
+    $entitlement_keycloak = $urn_namespace . ":group:" . str_replace('+', '\+', $cou_name) . $group;
     if ($urn_legacy) {
       $entitlement_regex = '(' . $entitlement_regex . ')|(^' . $urn_namespace . ":group:" . str_replace('+', '\+', $cou_name) . '#' . $urn_authority . ')';
     }
     // $query = 'DELETE FROM user_edu_person_entitlement'
     // . ' WHERE edu_person_entitlement ~  \''. $entitlement_regex .'\' AND edu_person_entitlement ~ \'' .$regex. '\'';
+    $users = $provisioner->retrieveUsersByEduPersonEntitlement($keycloak, $entitlement_keycloak);
+    foreach ($users as $keycloak_user) {
+      // Loop through the entitlements array and remove matching entitlements
+      foreach ($keycloak_user->attributes->eduPersonEntitlement as $key => $entitlement) {
+        if (preg_match('/' . $entitlement_regex . '/', $entitlement) && preg_match('/' . $regex . '/', $entitlement)) {
 
-    // Loop through the entitlements array and remove matching entitlements
-    foreach ($keycloak->entitlements as $key => $entitlement) {
-      if (preg_match('/' . $entitlement_regex . '/', $entitlement) && preg_match('/' . $regex . '/', $entitlement)) {
-        
-        unset($keycloak->entitlements[$key]);
+          unset($keycloak_user->attributes->eduPersonEntitlement[$key]);
+        }
+        CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' . $keycloak_user->attributes->eduPersonEntitlement, LOG_DEBUG);
       }
     }
-    CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' . $keycloak->entitlements, LOG_DEBUG);
   }
 
   /**
@@ -144,7 +148,7 @@ class Keycloak
    * @param  mixed $vo_group_prefix
    * @return void
    */
-  public static function deleteEntitlementsByGroup($keycloak, $group_name, $urn_namespace, $urn_legacy, $urn_authority, $vo_group_prefix)
+  public static function deleteEntitlementsByGroup($provisioner, $keycloak, $group_name, $urn_namespace, $urn_legacy, $urn_authority, $vo_group_prefix)
   {
     if (
       !empty($keycloak->entitlementFormat)
@@ -156,20 +160,23 @@ class Keycloak
     }
 
     $entitlement_regex = '^' . $urn_namespace . ':group:' . $vo_group_prefix . ':' . str_replace('+', '\+', urlencode($group_name)) . '(.*)';
+    $entitlement_keycloak = $urn_namespace . ":group:" .  $vo_group_prefix . ':' . str_replace('+', '\+', urlencode($group_name));
+
     if ($urn_legacy) {
       $entitlement_regex = '(' . $entitlement_regex . ')|(^' . $urn_namespace . ':' . $urn_authority . ':(.*)@' . urlencode($group_name) . ')';
     }
     // $query = 'DELETE FROM user_edu_person_entitlement'
     //   . ' WHERE edu_person_entitlement ~  \'' . $entitlement_regex . '\' AND edu_person_entitlement ~ \'' . $regex . '\'';
-
-    // Loop through the entitlements array and remove matching entitlements
-    foreach ($keycloak->entitlements as $key => $entitlement) {
-      if (preg_match('/' . $entitlement_regex . '/', $entitlement) && preg_match('/' . $regex . '/', $entitlement)) {
-        unset($keycloak->entitlements[$key]);
+    $users = $provisioner->retrieveUsersByEduPersonEntitlement($keycloak, $entitlement_keycloak);
+    foreach ($users as $keycloak_user) {
+      // Loop through the entitlements array and remove matching entitlements
+      foreach ($keycloak_user->attributes->eduPersonEntitlement as $key => $entitlement) {
+        if (preg_match('/' . $entitlement_regex . '/', $entitlement) && preg_match('/' . $regex . '/', $entitlement)) {
+          unset($keycloak_user->attributes->eduPersonEntitlement[$key]);
+        }
       }
+      CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' .  var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
     }
-
-    CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' .  var_export($keycloak->entitlements, true), LOG_DEBUG);
   }
 
 
@@ -185,7 +192,7 @@ class Keycloak
    * @param  mixed $vo_group_prefix
    * @return void
    */
-  public static function renameEntitlementsByGroup($keycloak, $old_group_name, $new_group_name,  $urn_namespace, $urn_legacy, $urn_authority, $vo_group_prefix)
+  public static function renameEntitlementsByGroup($provisioner, $keycloak, $old_group_name, $new_group_name,  $urn_namespace, $urn_legacy, $urn_authority, $vo_group_prefix)
   {
     if (strpos($keycloak->entitlementFormat, "/") == 0) {
       $regex = explode('/', $keycloak->entitlementFormat)[1];
@@ -193,20 +200,26 @@ class Keycloak
       $regex = $keycloak->entitlementFormat;
     }
     $entitlement_regex = '^' . $urn_namespace . ':group:' . $vo_group_prefix . ':' . str_replace('+', '\+', urlencode($old_group_name)) . '(.*)';
+    $entitlement_keycloak = $urn_namespace . ":group:" .  $vo_group_prefix . ':' . str_replace('+', '\+', urlencode($old_group_name));
+
     if ($urn_legacy) {
       $entitlement_regex = '(' . $entitlement_regex . ')|(^' . $urn_namespace . ':' . $urn_authority . ':(.*)@' . str_replace('+', '\+', urlencode($old_group_name)) . ')';
     }
     // $query = 'UPDATE user_edu_person_entitlement SET edu_person_entitlement = REPLACE(edu_person_entitlement, \'' . urlencode($old_group_name) . '\',\'' . urlencode($new_group_name) . '\')'
     //   . ' WHERE edu_person_entitlement ~  \'' . $entitlement_regex . '\' AND edu_person_entitlement ~ \'' . $regex . '\'';
-    
-    // Loop through the entitlements array and update matching entitlements
-    foreach ($keycloak->entitlements as &$entitlement) {
-      if (preg_match('/' . $entitlement_regex . '/', $entitlement) && preg_match('/' . $regex . '/', $entitlement)) {
-          $entitlement = str_replace(urlencode($old_group_name), urlencode($new_group_name), $entitlement);
-      }
-    }
 
-    CakeLog::write('debug', __METHOD__ . ':: entitlements after renaming: ' . var_export($keycloak->entitlements, true), LOG_DEBUG);
+    // Loop through the entitlements array and update matching entitlements
+    $users = $provisioner->retrieveUsersByEduPersonEntitlement($keycloak, $entitlement_keycloak);
+    foreach ($users as $keycloak_user) {
+      // Loop through the entitlements array and remove matching entitlements
+      foreach ($keycloak_user->attributes->eduPersonEntitlement as $key => $entitlement) {
+        if (preg_match('/' . $entitlement_regex . '/', $entitlement) && preg_match('/' . $regex . '/', $entitlement)) {
+          $keycloak_user->attributes->eduPersonEntitlement[$key] = str_replace(urlencode($old_group_name), urlencode($new_group_name), $entitlement);
+        }
+      }
+
+      CakeLog::write('debug', __METHOD__ . ':: entitlements after renaming: ' . var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
+    }
   }
 
   /**
@@ -221,7 +234,7 @@ class Keycloak
    * @param  mixed $vo_group_prefix
    * @return void
    */
-  public static function renameEntitlementsByCou($keycloak, $old_cou_name, $new_cou_name,  $urn_namespace, $urn_legacy, $urn_authority)
+  public static function renameEntitlementsByCou($provisioner, $keycloak, $old_cou_name, $new_cou_name,  $urn_namespace, $urn_legacy, $urn_authority)
   {
     if (strpos($keycloak->entitlementFormat, "/") == 0) {
       $regex = explode('/', $keycloak->entitlementFormat)[1];
@@ -232,23 +245,25 @@ class Keycloak
     $group = !empty($group_name) ? ":" . $group_name : "";
     // old_cou_name and new_cou_name are already url_encoded
     $entitlement_regex = '^' . $urn_namespace . ":group:" . str_replace('+', '\+', $old_cou_name) . $group . ":(.*)#" . $urn_authority;
+    $entitlement_keycloak = $urn_namespace . ":group:" .  str_replace('+', '\+', $old_cou_name) . $group . ":";
 
     if ($urn_legacy) {
       $entitlement_regex = '(' . $entitlement_regex . ')|(^' . $urn_namespace . ":group:" . str_replace('+', '\+', $old_cou_name) . '#' . $urn_authority . ')';
     }
     // $query = 'UPDATE user_edu_person_entitlement SET edu_person_entitlement = REPLACE(edu_person_entitlement, \'' . $old_cou_name . '\',\'' . $new_cou_name . '\') '
     //   . 'WHERE edu_person_entitlement ~  \'' . $entitlement_regex . '\' AND edu_person_entitlement ~ \'' . $regex . '\'';
-    
+
     // Loop through the entitlements array and update matching entitlements
-    CakeLog::write('debug', __METHOD__ . ':: entitlements before renaming: ' .  var_export($keycloak->entitlements, true), LOG_DEBUG);
-    
-    foreach ($keycloak->entitlements as &$entitlement) {
-      if (preg_match('/' . $entitlement_regex . '/', $entitlement) && preg_match('/' . $regex . '/', $entitlement)) {
-          $entitlement = str_replace($old_cou_name, $new_cou_name, $entitlement);
+    $users = $provisioner->retrieveUsersByEduPersonEntitlement($keycloak, $entitlement_keycloak);
+    foreach ($users as $keycloak_user) {
+      // Loop through the entitlements array and remove matching entitlements
+      foreach ($keycloak_user->attributes->eduPersonEntitlement as $key => $entitlement) {
+        if (preg_match('/' . $entitlement_regex . '/', $entitlement) && preg_match('/' . $regex . '/', $entitlement)) {
+          $keycloak_user->attributes->eduPersonEntitlement[$key] = str_replace($old_cou_name, $new_cou_name, $entitlement);
+        }
       }
+      CakeLog::write('debug', __METHOD__ . ':: entitlements after renaming: ' .  var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
     }
-    CakeLog::write('debug', __METHOD__ . ':: entitlements after renaming: ' .  var_export($keycloak->entitlements, true), LOG_DEBUG);
-    
   }
 
   /**
@@ -263,7 +278,6 @@ class Keycloak
 
     CakeLog::write('debug', __METHOD__ . ':: delete all entitlements from keycloak for user.', LOG_DEBUG);
     $keycloak->entitlements = [];
-    
   }
 
   /**

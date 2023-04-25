@@ -112,6 +112,11 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       'required' => false,
       'allowEmpty' => true
     ),
+    'api_realm' => array(
+      'rule' => 'notBlank',
+      'required' => false,
+      'allowEmpty' => true
+    ),
     'api_client_id' => array(
       'rule' => 'notBlank',
       'required' => false,
@@ -343,13 +348,14 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
     $user_profile = $this->retrieveUserCouRelatedStatus($provisioningData, $coProvisioningTargetData);
     $access_token = $this->retrieveAccessToken($coProvisioningTargetData);
     $this->log(__METHOD__ . '::Access Token from Keycloak ' . $access_token, LOG_DEBUG);
-
-    //$datasource = $this->connect($connect_id, array(), $coProvisioningTargetData);
+    
+    // Set configuration to keycloak variable
     $keycloak = ClassRegistry::init('KeycloakUsers');
-    Keycloak::config($keycloak, $coProvisioningTargetData['CoKeycloakProvisionerTarget'], $user_profile);
+    Keycloak::config($keycloak, $coProvisioningTargetData['CoKeycloakProvisionerTarget'], $user_profile, $access_token);
+    //$users = $this->retrieveUsersByEduPersonEntitlement($keycloak, "urn:mace:egi.eu:group:vo.example.org:");
     if (!empty($data['group_name']) && !empty($data['delete_group'])) { //group Deleted
       //Delete All Entitlements For this Group
-      Keycloak::deleteEntitlementsByGroup(
+      Keycloak::deleteEntitlementsByGroup($this,
         $keycloak,
         $data['group_name'],
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_namespace'],
@@ -362,7 +368,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       );
     } else if (!empty($data['rename_group'])) { //group Renamed
       // Rename All Entitlements For this Group 
-      Keycloak::renameEntitlementsByGroup(
+      Keycloak::renameEntitlementsByGroup($this,
         $keycloak,
         $data['group_name'],
         $data['new_group_name'],
@@ -377,7 +383,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       $old_group = ((empty($paths) || empty($paths[$data['cou']['cou_id']])) ? urlencode($data['cou']['group_name']) : $paths[$data['cou']['cou_id']]['path']);
       $paths = SyncEntitlements::getCouTreeStructure(array($data['new_cou']));
       $new_group = ((empty($paths) || empty($paths[$data['new_cou']['cou_id']])) ? urlencode($data['new_cou']['group_name']) : $paths[$data['new_cou']['cou_id']]['path']);
-      Keycloak::renameEntitlementsByCou(
+      Keycloak::renameEntitlementsByCou($this,
         $keycloak,
         $old_group,
         $new_group,
@@ -387,7 +393,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       );
     } else if (!empty($data['delete_group'])) { //group Deleted
       // Delete All Entitlements For this Group
-      Keycloak::deleteEntitlementsByGroup(
+      Keycloak::deleteEntitlementsByGroup($this,
         $keycloak,
         $data['group_name'],
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_namespace'],
@@ -410,6 +416,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       }
       if (!is_null($cou_name)) {
         Keycloak::deleteEntitlementsByCou(
+          $this,
           $keycloak,
           $cou_name,
           $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_namespace'],
@@ -421,9 +428,8 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       //Get Person by the epuid
       //$person = $keycloak->find('all', array('conditions'=> array('KeycloakUsers.sub' => $data['co_person_identifier'])));
 
-      $person = $this->retrievePerson($access_token, $data['co_person_identifier'], $coProvisioningTargetData);
-      
-      $this->updatePerson($access_token, $person[0], $coProvisioningTargetData);
+      $person = $this->retrievePerson($keycloak, $data['co_person_identifier']);
+
       if (empty($person[0])) {
         $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => person id not found in keycloak with identifier: ' . $data['co_person_identifier'], LOG_DEBUG);
         return false;
@@ -455,6 +461,9 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
 
         //Insert New Entitlements
         Keycloak::insertNewEntitlements($keycloak, $keycloak_entitlements, $new_entitlements);
+        
+        //TODO: Uncomment for OPENAIRE BETA
+        //$this->updatePersonEntitlements($keycloak, $person[0]);
         return;
       }
     }
@@ -479,7 +488,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       'client_secret' => Security::decrypt(base64_decode($coProvisioningTargetData['CoKeycloakProvisionerTarget']['api_client_secret']), Configure::read('Security.salt')), // Replace with your client secret
     ];
 
-    $url = $coProvisioningTargetData['CoKeycloakProvisionerTarget']['api_base_url'] . '/protocol/openid-connect/token';
+    $url = $coProvisioningTargetData['CoKeycloakProvisionerTarget']['api_base_url'] . '/realms/' . $coProvisioningTargetData['CoKeycloakProvisionerTarget']['api_realm']  . '/protocol/openid-connect/token';
     $response = $client->post($url, [
       'headers' => $headers,
       'form_params' => $data
@@ -490,19 +499,59 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
   }
 
   /**
-   * Retrieve Person From Keycloak
+   * Retrieve users By eduPersonEntitlement From Keycloak
    *
    * @return void
    */
-  protected function retrievePerson($access_token, $person_id, $coProvisioningTargetData)
+  public function retrieveUsersByEduPersonEntitlement($keycloak, $eduPersonEntitlement)
   {
     $client = new GuzzleHttp\Client();
     $headers = [
       'Content-Type' => 'application/x-www-form-urlencoded',
-      'Authorization' => 'Bearer ' . $access_token
+      'Authorization' => 'Bearer ' . $keycloak->accessToken
     ];
 
-    $url = 'https://aai-dev.egi.eu/auth/admin/realms/egi/users?username=' . $person_id;
+    $body = [];
+    $first = 0;
+    
+    do {
+      $url = $keycloak->apiBaseUrl
+      . '/admin/realms/'
+      . $keycloak->apiRealm
+      . '/users?q=eduPersonEntitlement:' . $eduPersonEntitlement
+      . '&first=' . $first.'&exact=true';
+
+      $response = $client->get($url, [
+        'headers' => $headers,
+      ]);
+      $part_response = json_decode($response->getBody());
+      if(!empty($part_response)) {
+        $body = array_merge($body, $part_response);
+      }
+      $first += 100;
+      $this->log(__METHOD__ . " ::  url " . $url, LOG_DEBUG);
+      $this->log(__METHOD__ . " ::  body " . var_export($body, true), LOG_DEBUG);
+
+    } while (!empty($part_response));
+
+
+    return $body;
+  }
+
+  /**
+   * Retrieve Person From Keycloak
+   *
+   * @return void
+   */
+  protected function retrievePerson($keycloak, $person_id)
+  {
+    $client = new GuzzleHttp\Client();
+    $headers = [
+      'Content-Type' => 'application/x-www-form-urlencoded',
+      'Authorization' => 'Bearer ' . $keycloak->accessToken
+    ];
+
+    $url = $keycloak->apiBaseUrl . '/admin/realms/' .  $keycloak->apiRealm . '/users?username=' . $person_id;
 
     $response = $client->get($url, [
       'headers' => $headers,
@@ -513,17 +562,20 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
     return $body;
   }
 
-  protected function updatePerson($access_token, $keycloak_user, $coProvisioningTargetData)
+  protected function updatePersonEntitlements($keycloak, $keycloak_user)
   {
     try {
       $client = new GuzzleHttp\Client();
 
       $headers = [
         'Content-Type' => 'application/json',
-        'Authorization' => 'Bearer ' . $access_token
+        'Authorization' => 'Bearer ' . $keycloak->accessToken
       ];
-
-      $url = 'https://aai-dev.egi.eu/auth/admin/realms/egi/users/' . $keycloak_user->id;
+      $this->log( __METHOD__ . ':: entitlements before update ' . var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
+      $this->log( __METHOD__ . ':: entitlements after update will be ' . var_export($keycloak->entitlements, true), LOG_DEBUG);
+      
+      $keycloak_user->attributes->eduPersonEntitlement = $keycloak->entitlements;
+      $url = $keycloak->apiBaseUrl . '/admin/realms/' . $keycloak->apiRealm . '/users/' . $keycloak_user->id;
       $response = $client->put($url, [
         'headers' => $headers,
         'json' => [
@@ -614,15 +666,15 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
     // XXX We can not perform any action with VOMS without a Certificate having both a subjectDN and an Issuer
     // XXX Keep in depth level 1 only the non empty Certificates
     $user_profile = $this->CoProvisioningTarget->Co->CoPerson->find('first', $args);
-
-    foreach ($user_profile["CoOrgIdentityLink"] as $link) {
-      if (!empty($link["OrgIdentity"]['Cert'])) {
-        foreach ($link["OrgIdentity"]['Cert'] as $cert) {
-          $user_profile['Cert'][] = $cert;
+    if(!empty($user_profile["CoOrgIdentityLink"])) {
+      foreach ($user_profile["CoOrgIdentityLink"] as $link) {
+        if (!empty($link["OrgIdentity"]['Cert'])) {
+          foreach ($link["OrgIdentity"]['Cert'] as $cert) {
+            $user_profile['Cert'][] = $cert;
+          }
         }
       }
     }
-
     // Fetch the orgidentities linked with the certificates
     if (!empty($user_profile['Cert'])) {
       // Extract the Certificate ids

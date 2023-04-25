@@ -84,8 +84,8 @@ $token_key = $this->request->params['_Token']['key'];
               ?>
             </a>
             <div id="names-container" class="fields">
-                <ul id="tabs-database" class="fields form-list">
-                <li>
+              <ul id="tabs-database" class="fields form-list">
+              <li>
               <div class="field-name">
                 <div class="field-title">
                   <?php print $this->Form->label('api_base_url',_txt('fd.keycloak_provisioner.api_base_url')); ?>
@@ -97,6 +97,21 @@ $token_key = $this->request->params['_Token']['key'];
                 $value = empty($co_keycloak_provisioner_targets[0]["CoKeycloakProvisionerTarget"]['api_base_url']) ? ''
                   : filter_var($co_keycloak_provisioner_targets[0]["CoKeycloakProvisionerTarget"]['api_base_url'],FILTER_SANITIZE_SPECIAL_CHARS);
                 print $this->Form->input('api_base_url', array('size' => 250,'value' => $value));
+                ?>
+              </div>
+            </li>
+            <li>
+              <div class="field-name">
+                <div class="field-title">
+                  <?php print $this->Form->label('api_realm',_txt('fd.keycloak_provisioner.api_realm')); ?>
+                  <span class="required">*</span>
+                </div>
+              </div>
+              <div class="field-info">
+                <?php
+                $value = empty($co_keycloak_provisioner_targets[0]["CoKeycloakProvisionerTarget"]['api_realm']) ? ''
+                  : filter_var($co_keycloak_provisioner_targets[0]["CoKeycloakProvisionerTarget"]['api_realm'],FILTER_SANITIZE_SPECIAL_CHARS);
+                print $this->Form->input('api_realm', array('size' => 250,'value' => $value));
                 ?>
               </div>
             </li>

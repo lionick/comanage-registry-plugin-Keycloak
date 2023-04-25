@@ -6,7 +6,8 @@ create table cm_co_keycloak_provisioner_targets
     co_provisioning_target_id        integer                     not null
         constraint cm_co_keycloak_provisioner_targets_co_provisioning_target_id_fk
             references cm_co_provisioning_targets,
-    api_base_url                         varchar(512)  default NULL::character varying,
+    api_base_url                     varchar(512)  default NULL::character varying,
+    api_realm                        varchar(512)  default NULL::character varying,
     api_client_id                    varchar(128)  default NULL::character varying,
     api_client_secret                varchar(256)  default NULL::character varying,
     vo_roles                         varchar(256)  default NULL::character varying,

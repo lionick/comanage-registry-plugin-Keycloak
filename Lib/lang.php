@@ -68,6 +68,7 @@ $cm_keycloak_provisioner_texts['en_US'] = array(
   'pl.keycloak_provisioner.api.credentials' => 'Keycloak API Credentials',
 
   'fd.keycloak_provisioner.api_base_url' => 'API Base Url',
+  'fd.keycloak_provisioner.api_realm' => 'Keycloak Realm',
   'fd.keycloak_provisioner.api_client_id' => 'API ClientId',
   'fd.keycloak_provisioner.api_client_secret' => 'API Client Secret',
 );

@@ -64,11 +64,3 @@ class KeycloakProvisionerIdentifierEnum
     KeycloakProvisionerIdentifierEnum::UID => 'uid'
   );
 }
-
-class KeycloakProvisionerRciamSyncVomsCfg {
-  const VoBlackList = array(
-    'vo.elixir-europe.org'
-  );
-  const UserIdAttribute   = 'distinguishedName';
-  const TableName         = 'cm_voms_members';
-}
