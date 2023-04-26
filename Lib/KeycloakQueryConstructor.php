@@ -1,5 +1,5 @@
 <?php
-class QueryConstructor {
+class KeycloakQueryConstructor {
   public static function getMembershipQuery($coId , $co_person_id){
     $query =  "SELECT"
     . " DISTINCT substring(groups.name, '^(?:(?:COU?[:])+)?(.+?)(?:[:]mem.+)?$') as group_name,"
