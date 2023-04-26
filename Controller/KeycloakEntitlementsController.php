@@ -29,7 +29,7 @@
 App::import('Sanitize');
 App::uses("StandardController", "Controller");
 
-class EntitlementsController extends StandardController
+class KeycloakEntitlementsController extends StandardController
 {
 
   public $uses = array(
@@ -48,7 +48,7 @@ class EntitlementsController extends StandardController
       // currently support.
 
       try {       
-        $syncEntitlements = new SyncEntitlements($this->CoKeycloakProvisionerTarget->getConfiguration($this->params['url']['coid']),$this->params['url']['coid']);
+        $syncEntitlements = new KeycloakSyncEntitlements($this->CoKeycloakProvisionerTarget->getConfiguration($this->params['url']['coid']),$this->params['url']['coid']);
         $groups = $syncEntitlements->getEntitlements($this->params['url']['copersonid']);
 
         if (!empty($groups)) {

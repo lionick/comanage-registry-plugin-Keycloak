@@ -355,7 +355,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_namespace'],
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_legacy'],
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_authority'],
-        SyncEntitlements::get_vo_group_prefix(
+        KeycloakSyncEntitlements::get_vo_group_prefix(
           $coProvisioningTargetData['CoKeycloakProvisionerTarget']['vo_group_prefix'],
           $data['co_id']
         )
@@ -369,13 +369,13 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_namespace'],
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_legacy'],
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_authority'],
-        SyncEntitlements::get_vo_group_prefix($coProvisioningTargetData['CoKeycloakProvisionerTarget']['vo_group_prefix'], $provisioningData['CoGroup']['co_id'])
+        KeycloakSyncEntitlements::get_vo_group_prefix($coProvisioningTargetData['CoKeycloakProvisionerTarget']['vo_group_prefix'], $provisioningData['CoGroup']['co_id'])
       );
     } else if (!empty($data['rename_cou'])) { //cou Renamed
       // Rename All Entitlements For this Cou
-      $paths = SyncEntitlements::getCouTreeStructure(array($data['cou']));
+      $paths = KeycloakSyncEntitlements::getCouTreeStructure(array($data['cou']));
       $old_group = ((empty($paths) || empty($paths[$data['cou']['cou_id']])) ? urlencode($data['cou']['group_name']) : $paths[$data['cou']['cou_id']]['path']);
-      $paths = SyncEntitlements::getCouTreeStructure(array($data['new_cou']));
+      $paths = KeycloakSyncEntitlements::getCouTreeStructure(array($data['new_cou']));
       $new_group = ((empty($paths) || empty($paths[$data['new_cou']['cou_id']])) ? urlencode($data['new_cou']['group_name']) : $paths[$data['new_cou']['cou_id']]['path']);
       Keycloak::renameEntitlementsByCou($this,
         $keycloak,
@@ -393,13 +393,13 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_namespace'],
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_legacy'],
         $coProvisioningTargetData['CoKeycloakProvisionerTarget']['urn_authority'],
-        SyncEntitlements::get_vo_group_prefix($coProvisioningTargetData['CoKeycloakProvisionerTarget']['vo_group_prefix'], $data['co_id'])
+        KeycloakSyncEntitlements::get_vo_group_prefix($coProvisioningTargetData['CoKeycloakProvisionerTarget']['vo_group_prefix'], $data['co_id'])
       );
     }
     // Is needed for :admins group
     else if (!empty($data['delete_cou'])) { //cou Deleted
       // Delete All Entitlements For this Cou
-      $paths = SyncEntitlements::getCouTreeStructure(array($data['cou']));
+      $paths = KeycloakSyncEntitlements::getCouTreeStructure(array($data['cou']));
       $cou_name = null;
       if (!empty($paths) && !empty($data['cou']['cou_id'])) {
         $cou_name = $paths[$data['cou']['cou_id']]['path'];
@@ -437,7 +437,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
         $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => current_entitlements from Keycloak:' . var_export($person[0]->attributes->eduPersonEntitlement, true), LOG_DEBUG);
 
         //Get New Entitlements From Comanage
-        $syncEntitlements = new SyncEntitlements($coProvisioningTargetData['CoKeycloakProvisionerTarget'], $data['co_id']);
+        $syncEntitlements = new KeycloakSyncEntitlements($coProvisioningTargetData['CoKeycloakProvisionerTarget'], $data['co_id']);
         $new_entitlements = $syncEntitlements->getEntitlements($data['co_person_id']);
         $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => new_entitlements from comanage: ' . print_r($new_entitlements, true), LOG_DEBUG);
 

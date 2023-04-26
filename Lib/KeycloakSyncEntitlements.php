@@ -2,7 +2,7 @@
 App::uses('CoProvisionerPluginTarget', 'Model');
 App::uses('CakeLog', 'Log');
 
-class SyncEntitlements {
+class KeycloakSyncEntitlements {
   public  $state = array();
   public  $config = null;
   public  $nested_cous_paths;
@@ -67,7 +67,7 @@ class SyncEntitlements {
         $roles[] = "owner";
       }
       // todo: Move this to configuration
-      $voGroupPrefix = SyncEntitlements::get_vo_group_prefix($this->config['vo_group_prefix'], $this->coId);
+      $voGroupPrefix = KeycloakSyncEntitlements::get_vo_group_prefix($this->config['vo_group_prefix'], $this->coId);
       foreach($roles as $role) {
         $this->state['Attributes']['eduPersonEntitlement'][] =
           $this->config['urn_namespace']          // URN namespace
@@ -442,7 +442,7 @@ class SyncEntitlements {
     if($this->config['enable_vo_whitelist']===TRUE && empty($this->config['vo_whitelist']))
       return array();
     // XXX Get all the memberships from the the CO for the user
-    $coGroupMemberships = SyncEntitlements::getMemberships($this->coId, $coPersonId);
+    $coGroupMemberships = KeycloakSyncEntitlements::getMemberships($this->coId, $coPersonId);
     // XXX if this is empty return
     if(empty($coGroupMemberships)) {
       return array();
@@ -461,7 +461,7 @@ class SyncEntitlements {
 
     // CakeLog::write('debug', __METHOD__ . "::nested_cous => " . print_r($this->nested_cous_paths, true), LOG_DEBUG);
     // XXX Get the Nested COUs for the user
-    $this->nested_cous_paths = SyncEntitlements::getCouTreeStructure($cou_memberships);
+    $this->nested_cous_paths = KeycloakSyncEntitlements::getCouTreeStructure($cou_memberships);
 
     // Define the array that will hold the member entitlements
     $this->members_entitlements = [];
