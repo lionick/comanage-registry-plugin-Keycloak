@@ -210,7 +210,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
    */
   public function checkRequest($op, $provisioningData,  $data)
   {
-    $this->log(__METHOD__ . "::@Test", LOG_DEBUG);
+
     // Check if its a request we want to provision
     if (!empty($_REQUEST['_method']) && $_REQUEST['_method'] == 'PUT' && !empty($_REQUEST['data']['CoPersonRole']) && $_REQUEST['data']['CoPersonRole']['status'] == 'S' && !empty($data['co_person_id'])) { //SUSPEND
       $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => [CoPersonRole Form] Suspended User with id:' . $data['co_person_id'], LOG_DEBUG);
@@ -225,11 +225,6 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
     } else if (!empty($_REQUEST) && strpos(array_keys($_REQUEST)[0], '/co_group_members/add_json') !== FALSE && !empty($data['co_person_id'])) { //add co group member from rest api
       $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => [CoGroupMember] REST API CALL: add group to user with id:' . $data['co_person_id'], LOG_DEBUG);
     } else if (!empty($_REQUEST) && strpos(array_keys($_REQUEST)[0], '/co_groups/add') !== FALSE && !empty($data['co_person_id'])) { //add group
-      /* $data['co_person_identifier'] = $provisioningData['CoPerson']['actor_identifier'];
-        $CoPerson = ClassRegistry::init('CoPerson');
-        $data['co_person_id'] = $CoPerson->field('id', array('actor_identifier' => $data['co_person_identifier']));
-        $data['co_group_id'] = $provisioningData['CoGroup']['id'];
-        $data['co_id'] = $provisioningData['CoGroup']['co_id'];*/
       $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => [CoGroup] add group membership to user id:' . $data['co_person_id'], LOG_DEBUG);
     } else if (!empty($_REQUEST) && strpos(array_keys($_REQUEST)[0], '/co_groups/delete') !== FALSE) { //delete co group
       $data['co_group_id'] = explode('/', array_keys($_REQUEST)[0])[3];
@@ -295,7 +290,6 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
 
   public function provision($coProvisioningTargetData, $op, $provisioningData)
   {
-    $this->log(__METHOD__ . "::@Test", LOG_DEBUG);
     $this->log(__METHOD__ . "::action => " . $op, LOG_DEBUG);
     $data = NULL;
 
@@ -425,8 +419,6 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
         );
       }
     } else {
-      //Get Person by the epuid
-      //$person = $keycloak->find('all', array('conditions'=> array('KeycloakUsers.sub' => $data['co_person_identifier'])));
 
       $person = $this->retrievePerson($keycloak, $data['co_person_identifier']);
 
@@ -434,36 +426,23 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
         $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => person id not found in keycloak with identifier: ' . $data['co_person_identifier'], LOG_DEBUG);
         return false;
       }
-      $this->log(__METHOD__ . '::Provisioning action PERSON ' . $op . ' =>' . var_export($person[0], true), LOG_DEBUG);
+      $this->log(__METHOD__ . '::Provisioning action ' . $op . ' =>' . $person[0]->username, LOG_DEBUG);
 
-      //Get User Entitlements From Keycloak
-      $keycloak_entitlements = $person[0]->attributes->eduPersonEntitlement;
       $this->log(__METHOD__ . '::Provisioning action ' . $op . ' =>' . var_export($person[0]->attributes->eduPersonEntitlement, true), LOG_DEBUG);
 
-      Keycloak::setKeycloakEntitlements($keycloak, $keycloak_entitlements);
-
-      //Keycloak::config($keycloak_entitlements, $datasource, 'user_edu_person_entitlement', $coProvisioningTargetData['CoKeycloakProvisionerTarget'], $user_profile);
       if (!empty($data['user_deleted'])) {
-        Keycloak::deleteAllEntitlements($keycloak_entitlements);
+        Keycloak::deleteAllEntitlements($keycloak,  $person[0]);
+        //$this->updatePersonEntitlements($keycloak, $person[0]);
       } else {
         $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => current_entitlements from Keycloak:' . var_export($person[0]->attributes->eduPersonEntitlement, true), LOG_DEBUG);
 
-        //$current_entitlements = Keycloak::getCurrentEntitlements($keycloak_entitlements, $person[0]['KeycloakUsers']['id']);
-        //$this->log(__METHOD__ . '::Provisioning action ' . $op . ' => current_entitlements from Keycloak: ' . print_r($current_entitlements, true), LOG_DEBUG);
         //Get New Entitlements From Comanage
         $syncEntitlements = new SyncEntitlements($coProvisioningTargetData['CoKeycloakProvisionerTarget'], $data['co_id']);
         $new_entitlements = $syncEntitlements->getEntitlements($data['co_person_id']);
         $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => new_entitlements from comanage: ' . print_r($new_entitlements, true), LOG_DEBUG);
-        //$this->log(__METHOD__ . '::Provisioning action ' . $op . ' => keycloak: ' . print_r($keycloak, true), LOG_DEBUG);
 
-        //Delete Old Entitlements
-        Keycloak::deleteOldEntitlements($keycloak, $keycloak_entitlements, $new_entitlements);
-
-        //Insert New Entitlements
-        Keycloak::insertNewEntitlements($keycloak, $keycloak_entitlements, $new_entitlements);
-        
-        //TODO: Uncomment for OPENAIRE BETA
-        //$this->updatePersonEntitlements($keycloak, $person[0]);
+        //Update Old Entitlements
+        Keycloak::updateEntitlements($keycloak, $person[0], $new_entitlements);
         return;
       }
     }
@@ -534,7 +513,6 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
 
     } while (!empty($part_response));
 
-
     return $body;
   }
 
@@ -571,10 +549,10 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
         'Content-Type' => 'application/json',
         'Authorization' => 'Bearer ' . $keycloak->accessToken
       ];
-      $this->log( __METHOD__ . ':: entitlements before update ' . var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
-      $this->log( __METHOD__ . ':: entitlements after update will be ' . var_export($keycloak->entitlements, true), LOG_DEBUG);
+      // $this->log( __METHOD__ . ':: entitlements before update ' . var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
+      // $this->log( __METHOD__ . ':: entitlements after update will be ' . var_export($keycloak->entitlements, true), LOG_DEBUG);
       
-      $keycloak_user->attributes->eduPersonEntitlement = $keycloak->entitlements;
+      //$keycloak_user->attributes->eduPersonEntitlement = $keycloak->entitlements;
       $url = $keycloak->apiBaseUrl . '/admin/realms/' . $keycloak->apiRealm . '/users/' . $keycloak_user->id;
       $response = $client->put($url, [
         'headers' => $headers,

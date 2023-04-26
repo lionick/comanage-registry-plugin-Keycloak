@@ -8,8 +8,6 @@ App::uses('CakeLog', 'Log');
 class Keycloak
 {
 
-  //public static $entitlementFormat = '/(^urn:mace:egi.eu:(.*)#aai.egi.eu$)|(^urn:mace:egi.eu:aai.egi.eu:(.*))/i';
-
   /**
    * config
    *
@@ -32,12 +30,22 @@ class Keycloak
     }
   }
 
-  public static function setKeycloakEntitlements($keycloak, $keycloakEntitlements)
-  {
-    $keycloak->entitlements = $keycloakEntitlements;
-  }
+  // public static function setKeycloakEntitlements($keycloak, $keycloakEntitlements)
+  // {
+  //   $keycloak->entitlements = $keycloakEntitlements;
+  // }
 
+public static function updateEntitlements($keycloak, $person, $new_entitlements) {
+  
+  //Delete Old Entitlements
+  Keycloak::deleteOldEntitlements($keycloak, $person, $new_entitlements);
 
+  //Insert New Entitlements
+  Keycloak::insertNewEntitlements($keycloak, $person, $new_entitlements);
+          
+  //TODO: Uncomment for OPENAIRE BETA
+  //$this->updatePersonEntitlements($keycloak, $person);
+}
   /**
    * deleteOldEntitlements
    *
@@ -47,11 +55,11 @@ class Keycloak
    * @param  array $new_entitlements
    * @return void
    */
-  public static function deleteOldEntitlements($keycloak, $current_entitlements, $new_entitlements)
+  public static function deleteOldEntitlements($keycloak, &$person, $new_entitlements)
   {
     $deleteEntitlements_white = array();
     $deleteEntitlements_format = array();
-
+    $current_entitlements = $person->attributes->eduPersonEntitlement;
     // Find the candidate Entitlements
     $deleteEntitlements = array_diff($current_entitlements, $new_entitlements);
     CakeLog::write('debug', __METHOD__ . ':: delete old entitlements ', LOG_DEBUG);
@@ -84,8 +92,8 @@ class Keycloak
     $deleteEntitlements = array_merge($deleteEntitlements_white, $deleteEntitlements_format);
     if (!empty($deleteEntitlements)) {
       CakeLog::write('debug', __METHOD__ . ':: entitlements to be deleted at Keycloak ' . var_export($deleteEntitlements, true), LOG_DEBUG);
-      $keycloak->entitlements = array_values(array_diff($keycloak->entitlements, $deleteEntitlements));
-      CakeLog::write('debug', __METHOD__ . ':: entitlements remained ' . var_export($keycloak->entitlements, true), LOG_DEBUG);
+      $person->attributes->eduPersonEntitlement = array_values(array_diff($person->attributes->eduPersonEntitlement, $deleteEntitlements));
+      CakeLog::write('debug', __METHOD__ . ':: entitlements remained ' . var_export($person->attributes->eduPersonEntitlement, true), LOG_DEBUG);
     } else {
       CakeLog::write('debug', __METHOD__ . ':: no entitlements to be deleted at Keycloak ', LOG_DEBUG);
     }
@@ -122,8 +130,7 @@ class Keycloak
     if ($urn_legacy) {
       $entitlement_regex = '(' . $entitlement_regex . ')|(^' . $urn_namespace . ":group:" . str_replace('+', '\+', $cou_name) . '#' . $urn_authority . ')';
     }
-    // $query = 'DELETE FROM user_edu_person_entitlement'
-    // . ' WHERE edu_person_entitlement ~  \''. $entitlement_regex .'\' AND edu_person_entitlement ~ \'' .$regex. '\'';
+
     $users = $provisioner->retrieveUsersByEduPersonEntitlement($keycloak, $entitlement_keycloak);
     foreach ($users as $keycloak_user) {
       // Loop through the entitlements array and remove matching entitlements
@@ -132,8 +139,11 @@ class Keycloak
 
           unset($keycloak_user->attributes->eduPersonEntitlement[$key]);
         }
-        CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' . $keycloak_user->attributes->eduPersonEntitlement, LOG_DEBUG);
+        
       }
+      CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' . $keycloak_user->attributes->eduPersonEntitlement, LOG_DEBUG);
+      // TODO Remove comment
+      //$provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
     }
   }
 
@@ -165,8 +175,7 @@ class Keycloak
     if ($urn_legacy) {
       $entitlement_regex = '(' . $entitlement_regex . ')|(^' . $urn_namespace . ':' . $urn_authority . ':(.*)@' . urlencode($group_name) . ')';
     }
-    // $query = 'DELETE FROM user_edu_person_entitlement'
-    //   . ' WHERE edu_person_entitlement ~  \'' . $entitlement_regex . '\' AND edu_person_entitlement ~ \'' . $regex . '\'';
+
     $users = $provisioner->retrieveUsersByEduPersonEntitlement($keycloak, $entitlement_keycloak);
     foreach ($users as $keycloak_user) {
       // Loop through the entitlements array and remove matching entitlements
@@ -176,6 +185,8 @@ class Keycloak
         }
       }
       CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' .  var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
+      // TODO Remove comment
+      //$provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
     }
   }
 
@@ -205,8 +216,6 @@ class Keycloak
     if ($urn_legacy) {
       $entitlement_regex = '(' . $entitlement_regex . ')|(^' . $urn_namespace . ':' . $urn_authority . ':(.*)@' . str_replace('+', '\+', urlencode($old_group_name)) . ')';
     }
-    // $query = 'UPDATE user_edu_person_entitlement SET edu_person_entitlement = REPLACE(edu_person_entitlement, \'' . urlencode($old_group_name) . '\',\'' . urlencode($new_group_name) . '\')'
-    //   . ' WHERE edu_person_entitlement ~  \'' . $entitlement_regex . '\' AND edu_person_entitlement ~ \'' . $regex . '\'';
 
     // Loop through the entitlements array and update matching entitlements
     $users = $provisioner->retrieveUsersByEduPersonEntitlement($keycloak, $entitlement_keycloak);
@@ -217,8 +226,9 @@ class Keycloak
           $keycloak_user->attributes->eduPersonEntitlement[$key] = str_replace(urlencode($old_group_name), urlencode($new_group_name), $entitlement);
         }
       }
-
       CakeLog::write('debug', __METHOD__ . ':: entitlements after renaming: ' . var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
+      // TODO Remove comment
+      //$provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
     }
   }
 
@@ -250,8 +260,6 @@ class Keycloak
     if ($urn_legacy) {
       $entitlement_regex = '(' . $entitlement_regex . ')|(^' . $urn_namespace . ":group:" . str_replace('+', '\+', $old_cou_name) . '#' . $urn_authority . ')';
     }
-    // $query = 'UPDATE user_edu_person_entitlement SET edu_person_entitlement = REPLACE(edu_person_entitlement, \'' . $old_cou_name . '\',\'' . $new_cou_name . '\') '
-    //   . 'WHERE edu_person_entitlement ~  \'' . $entitlement_regex . '\' AND edu_person_entitlement ~ \'' . $regex . '\'';
 
     // Loop through the entitlements array and update matching entitlements
     $users = $provisioner->retrieveUsersByEduPersonEntitlement($keycloak, $entitlement_keycloak);
@@ -263,6 +271,8 @@ class Keycloak
         }
       }
       CakeLog::write('debug', __METHOD__ . ':: entitlements after renaming: ' .  var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
+      // TODO Remove comment
+      //$provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
     }
   }
 
@@ -273,11 +283,13 @@ class Keycloak
    * @param  integer $user_id
    * @return void
    */
-  public static function deleteAllEntitlements($keycloak)
+  public static function deleteAllEntitlements($keycloak, $person)
   {
 
     CakeLog::write('debug', __METHOD__ . ':: delete all entitlements from keycloak for user.', LOG_DEBUG);
-    $keycloak->entitlements = [];
+    $person->attributes->eduPersonEntitlement = [];
+    //TODO: Uncomment for OPENAIRE BETA
+    //$this->updatePersonEntitlements($keycloak, $person);
   }
 
   /**
@@ -319,16 +331,17 @@ class Keycloak
    * @param  array $new_entitlements
    * @return void
    */
-  public static function insertNewEntitlements($keycloak, $current_entitlements, $new_entitlements)
+  public static function insertNewEntitlements($keycloak, &$person, $new_entitlements)
   {
+    $current_entitlements = $person->attributes->eduPersonEntitlement;
     $insertEntitlements = array_diff($new_entitlements, $current_entitlements);
     if (!empty($insertEntitlements)) {
       CakeLog::write('debug', __METHOD__ . ':: entitlements to be inserted to Keycloak' . print_r($insertEntitlements, true), LOG_DEBUG);
       foreach ($insertEntitlements as $new_entitlement) {
-        array_push($keycloak->entitlements, $new_entitlement);
+        array_push($person->attributes->eduPersonEntitlement, $new_entitlement);
       }
 
-      CakeLog::write('debug', __METHOD__ . ':: entitlements keycloak ' . var_export($keycloak->entitlements, true), LOG_DEBUG);
+      CakeLog::write('debug', __METHOD__ . ':: entitlements keycloak ' . var_export($person->attributes->eduPersonEntitlement, true), LOG_DEBUG);
     }
   }
 }
