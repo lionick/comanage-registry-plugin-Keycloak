@@ -498,7 +498,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       . '/admin/realms/'
       . $keycloak->apiRealm
       . '/users?q=eduPersonEntitlement:' . $eduPersonEntitlement
-      . '&first=' . $first.'&exact=true';
+      . '&first=' . $first;
 
       $response = $client->get($url, [
         'headers' => $headers,
