@@ -35,7 +35,7 @@ class Keycloak
   //   $keycloak->entitlements = $keycloakEntitlements;
   // }
 
-public static function updateEntitlements($keycloak, $person, $new_entitlements) {
+public static function updateEntitlements($provisioner, $keycloak, $person, $new_entitlements) {
   
   //Delete Old Entitlements
   Keycloak::deleteOldEntitlements($keycloak, $person, $new_entitlements);
@@ -44,7 +44,7 @@ public static function updateEntitlements($keycloak, $person, $new_entitlements)
   Keycloak::insertNewEntitlements($keycloak, $person, $new_entitlements);
           
   //TODO: Uncomment for OPENAIRE BETA
-  //$this->updatePersonEntitlements($keycloak, $person);
+  $provisioner->updatePersonEntitlements($keycloak, $person);
 }
   /**
    * deleteOldEntitlements

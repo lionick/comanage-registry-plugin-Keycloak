@@ -442,7 +442,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
         $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => new_entitlements from comanage: ' . print_r($new_entitlements, true), LOG_DEBUG);
 
         //Update Old Entitlements
-        Keycloak::updateEntitlements($keycloak, $person[0], $new_entitlements);
+        Keycloak::updateEntitlements($this, $keycloak, $person[0], $new_entitlements);
         return;
       }
     }
@@ -540,7 +540,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
     return $body;
   }
 
-  protected function updatePersonEntitlements($keycloak, $keycloak_user)
+  public function updatePersonEntitlements($keycloak, $keycloak_user)
   {
     try {
       $client = new GuzzleHttp\Client();
