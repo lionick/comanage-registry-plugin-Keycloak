@@ -431,8 +431,7 @@ class CoKeycloakProvisionerTarget extends CoProvisionerPluginTarget
       $this->log(__METHOD__ . '::Provisioning action ' . $op . ' =>' . var_export($person[0]->attributes->eduPersonEntitlement, true), LOG_DEBUG);
 
       if (!empty($data['user_deleted'])) {
-        Keycloak::deleteAllEntitlements($keycloak,  $person[0]);
-        //$this->updatePersonEntitlements($keycloak, $person[0]);
+        Keycloak::deleteAllEntitlements($this, $keycloak,  $person[0]);
       } else {
         $this->log(__METHOD__ . '::Provisioning action ' . $op . ' => current_entitlements from Keycloak:' . var_export($person[0]->attributes->eduPersonEntitlement, true), LOG_DEBUG);
 

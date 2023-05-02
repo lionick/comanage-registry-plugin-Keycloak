@@ -143,7 +143,7 @@ public static function updateEntitlements($provisioner, $keycloak, $person, $new
       }
       CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' . $keycloak_user->attributes->eduPersonEntitlement, LOG_DEBUG);
       // TODO Remove comment
-      //$provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
+      $provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
     }
   }
 
@@ -186,7 +186,7 @@ public static function updateEntitlements($provisioner, $keycloak, $person, $new
       }
       CakeLog::write('debug', __METHOD__ . ':: entitlements left: ' .  var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
       // TODO Remove comment
-      //$provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
+      $provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
     }
   }
 
@@ -228,7 +228,7 @@ public static function updateEntitlements($provisioner, $keycloak, $person, $new
       }
       CakeLog::write('debug', __METHOD__ . ':: entitlements after renaming: ' . var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
       // TODO Remove comment
-      //$provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
+      $provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
     }
   }
 
@@ -272,7 +272,7 @@ public static function updateEntitlements($provisioner, $keycloak, $person, $new
       }
       CakeLog::write('debug', __METHOD__ . ':: entitlements after renaming: ' .  var_export($keycloak_user->attributes->eduPersonEntitlement, true), LOG_DEBUG);
       // TODO Remove comment
-      //$provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
+      $provisioner->updatePersonEntitlements($keycloak, $keycloak_user);
     }
   }
 
@@ -283,13 +283,13 @@ public static function updateEntitlements($provisioner, $keycloak, $person, $new
    * @param  integer $user_id
    * @return void
    */
-  public static function deleteAllEntitlements($keycloak, $person)
+  public static function deleteAllEntitlements($provisioner, $keycloak, $person)
   {
 
     CakeLog::write('debug', __METHOD__ . ':: delete all entitlements from keycloak for user.', LOG_DEBUG);
     $person->attributes->eduPersonEntitlement = [];
     //TODO: Uncomment for OPENAIRE BETA
-    //$this->updatePersonEntitlements($keycloak, $person);
+    $provisioner->updatePersonEntitlements($keycloak, $person);
   }
 
   /**
